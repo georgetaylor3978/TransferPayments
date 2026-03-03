@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transfer Payments — Programs Dashboard</title>
+    <meta name="description"
+        content="Canada Federal Government Transfer Payments by Department and Program — Live data from Open Canada API">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="index.css">
+</head>
+
+<body>
+
+    <!-- ═══════ Banner (scrolls away) ═══════ -->
+    <header class="header" id="banner">
+        <div class="header-content">
+            <div class="logo-area">
+                <a href="https://www.youtube.com/watch?v=xtuLxojQr6Y&list=PLh6oVqvhLWJQAlK1UB1J-riLiiNI8MEOc&index=7"
+                    target="_blank" rel="noopener noreferrer" class="hobo-link" title="The Littlest Hobo">
+                    <img src="hobo.jpg" alt="The Littlest Hobo" class="hobo-img">
+                </a>
+                <div>
+                    <h1>TRANSFER PAYMENTS — PROGRAMS</h1>
+                    <div class="subtitle">Public Accounts of Canada — Open Data</div>
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="https://ouvert.canada.ca/data/dataset/a35cf382-690c-4221-a971-cf0fd189a46f/resource/f942e312-df08-4f05-8fba-8b37b2a688db"
+                    target="_blank" rel="noopener noreferrer" class="source-link" title="Data Source">
+                    &#x1F4CA; Source
+                </a>
+                <div class="data-status loading" id="dataStatus">⏳ Loading…</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ═══════ Controls Section ═══════ -->
+    <section class="controls-bar">
+        <div class="controls-content">
+
+            <!-- Row 1: Department Dropdown & Definition -->
+            <div class="controls-row">
+                <!-- Department Dropdown -->
+                <div class="control-group">
+                    <label>Department</label>
+                    <div class="custom-dropdown" id="deptDropdown">
+                        <div class="dropdown-trigger" id="deptTrigger">
+                            <span class="dropdown-label">&lt;ALL&gt;</span>
+                            <span class="dropdown-arrow"></span>
+                        </div>
+                        <div class="dropdown-menu" id="deptMenu">
+                            <div class="dropdown-search">
+                                <input type="text" placeholder="Search departments…" id="deptSearch">
+                            </div>
+                            <div class="dropdown-list" id="deptList"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Definition Box -->
+                <div class="definition-box">
+                    <strong>What is a Transfer Payment?</strong>
+                    <p>"A monetary payment, or a transfer of goods, services or assets made, on the basis of an
+                        appropriation, to a third party, including a Crown corporation, that does not result in the
+                        acquisition by the Government of Canada of any goods, services or assets."</p>
+                </div>
+            </div>
+
+            <!-- Row 2: KPI Cards -->
+            <div class="kpi-row">
+                <div class="kpi-card">
+                    <div class="kpi-label">Growth ($)</div>
+                    <div class="kpi-value" id="kpiGrowthDollar">—</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Growth (%)</div>
+                    <div class="kpi-value" id="kpiGrowthPct">—</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════ Main Content ═══════ -->
+    <main class="main-content">
+
+        <!-- GRAPH 1 — Line: Amount over Time -->
+        <section class="chart-section">
+            <div class="chart-header">
+                <h2 id="chart1Title">Total Transfer Payments Over Time</h2>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="chart1"></canvas>
+            </div>
+        </section>
+
+        <!-- GRAPH 2 — Horizontal Bar: Departments by Amount for Year -->
+        <section class="chart-section">
+            <div class="chart-header">
+                <h2 id="chart2Title">Transfer Payments by Department</h2>
+                <div class="chart-control">
+                    <label>Year</label>
+                    <select id="yearSelect"></select>
+                </div>
+            </div>
+            <div class="chart-wrapper chart-wrapper-tall" id="chart2Wrapper">
+                <canvas id="chart2"></canvas>
+            </div>
+        </section>
+
+        <!-- GRAPH 3 — Horizontal Bar: Programs by Amount -->
+        <section class="chart-section">
+            <div class="chart-header">
+                <h2 id="chart3Title">Programs Breakdown</h2>
+            </div>
+            <div class="chart-wrapper chart-wrapper-tall" id="chart3Wrapper">
+                <canvas id="chart3"></canvas>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p>Data Source: Open Canada API — Public Accounts of Canada | Transfer Payments</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
