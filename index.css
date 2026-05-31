@@ -29,6 +29,22 @@
   --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+body.light-mode {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-controls: #ffffff;
+  --bg-input: #f1f5f9;
+
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+
+  --border: #e2e8f0;
+  --border-light: #cbd5e1;
+}
+
+
 *,
 *::before,
 *::after {
@@ -575,3 +591,208 @@ select:focus {
     height: 32px;
   }
 }
+
+/* ═══════════════════════════════════════════
+   New Premium Interactive Styles
+   ═══════════════════════════════════════════ */
+
+/* ── Light Mode Custom Styles ── */
+body.light-mode .header {
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+  border-bottom-color: var(--border);
+}
+body.light-mode .header h1 {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+body.light-mode .source-link {
+  color: var(--text-secondary);
+  border-color: var(--border-light);
+}
+body.light-mode .source-link:hover {
+  color: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+body.light-mode .kpi-card {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+body.light-mode .chart-section {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+body.light-mode .dropdown-menu {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* ── Theme Button ── */
+.theme-toggle-btn {
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  color: var(--text-primary);
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 1.1rem;
+}
+.theme-toggle-btn:hover {
+  border-color: var(--accent-blue);
+  background: rgba(59, 130, 246, 0.08);
+}
+body.light-mode .theme-toggle-btn {
+  background: var(--bg-card);
+}
+
+/* ── Switch Slider (Combine Departments) ── */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 26px;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--bg-input);
+  transition: .4s;
+  border: 1px solid var(--border-light);
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: var(--text-secondary);
+  transition: .4s;
+}
+input:checked + .slider {
+  background-color: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+input:checked + .slider:before {
+  transform: translateX(24px);
+  background-color: white;
+}
+.slider.round {
+  border-radius: 34px;
+}
+.slider.round:before {
+  border-radius: 50%;
+}
+.toggle-group {
+  max-width: 150px;
+  min-width: 120px;
+  flex: 0;
+}
+
+/* ── Premium Programs Table ── */
+.table-section {
+  display: flex;
+  flex-direction: column;
+}
+.table-container {
+  overflow-x: auto;
+  max-height: 500px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+.premium-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.88rem;
+}
+.premium-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-weight: 600;
+  padding: 14px 16px;
+  border-bottom: 2px solid var(--border);
+  z-index: 10;
+  user-select: none;
+}
+.premium-table th.sortable {
+  cursor: pointer;
+}
+.premium-table th.sortable:hover {
+  background: var(--bg-input);
+  color: var(--accent-blue);
+}
+.premium-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  vertical-align: middle;
+}
+.premium-table tbody tr:hover {
+  background: rgba(59, 130, 246, 0.04);
+}
+.premium-table tr:last-child td {
+  border-bottom: none;
+}
+.premium-table td.numeric,
+.premium-table th.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.sort-icon::after {
+  content: ' ↕';
+  opacity: 0.3;
+  font-size: 0.75rem;
+}
+.sort-asc .sort-icon::after {
+  content: ' ▲';
+  opacity: 0.8;
+  color: var(--accent-blue);
+}
+.sort-desc .sort-icon::after {
+  content: ' ▼';
+  opacity: 0.8;
+  color: var(--accent-blue);
+}
+.section-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.table-search-wrap input {
+  padding: 8px 14px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 0.85rem;
+  width: 240px;
+  transition: all 0.2s ease;
+}
+.table-search-wrap input:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  width: 300px;
+}
+.table-dept-subtext {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}

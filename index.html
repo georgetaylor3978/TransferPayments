@@ -28,6 +28,9 @@
                 </div>
             </div>
             <div class="header-actions">
+                <button id="themeToggle" class="theme-toggle-btn" title="Toggle Light/Dark Theme">
+                    <span class="theme-icon">🌙</span>
+                </button>
                 <a href="https://ouvert.canada.ca/data/dataset/a35cf382-690c-4221-a971-cf0fd189a46f/resource/f942e312-df08-4f05-8fba-8b37b2a688db"
                     target="_blank" rel="noopener noreferrer" class="source-link" title="Data Source">
                     &#x1F4CA; Source
@@ -41,8 +44,25 @@
     <section class="controls-bar">
         <div class="controls-content">
 
-            <!-- Row 1: Department Dropdown & Definition -->
+            <!-- Controls Row: Ministerial Group, Department, Combine Toggle -->
             <div class="controls-row">
+                <!-- Ministerial Group Dropdown -->
+                <div class="control-group">
+                    <label>Ministerial Group</label>
+                    <div class="custom-dropdown" id="groupDropdown">
+                        <div class="dropdown-trigger" id="groupTrigger">
+                            <span class="dropdown-label">&lt;ALL&gt;</span>
+                            <span class="dropdown-arrow"></span>
+                        </div>
+                        <div class="dropdown-menu" id="groupMenu">
+                            <div class="dropdown-search">
+                                <input type="text" placeholder="Search groups…" id="groupSearch">
+                            </div>
+                            <div class="dropdown-list" id="groupList"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Department Dropdown -->
                 <div class="control-group">
                     <label>Department</label>
@@ -58,6 +78,15 @@
                             <div class="dropdown-list" id="deptList"></div>
                         </div>
                     </div>
+                </div>
+
+                <!-- Combine departments toggle -->
+                <div class="control-group toggle-group" id="combineToggleGroup">
+                    <label id="combineToggleLabel">Combine Departments</label>
+                    <label class="switch">
+                        <input type="checkbox" id="combineToggle" checked>
+                        <span class="slider round"></span>
+                    </label>
                 </div>
 
                 <!-- Definition Box -->
@@ -110,13 +139,31 @@
             </div>
         </section>
 
-        <!-- GRAPH 3 — Horizontal Bar: Programs by Amount -->
-        <section class="chart-section">
+        <!-- PROGRAMS TABLE SECTION -->
+        <section class="chart-section table-section">
             <div class="chart-header">
-                <h2 id="chart3Title">Programs Breakdown</h2>
+                <div>
+                    <h2 id="tableTitle">Programs Breakdown</h2>
+                    <p class="section-desc" id="tableSubtitle">Top programs for the selected filters</p>
+                </div>
+                <div class="table-search-wrap">
+                    <input type="text" id="tableSearch" placeholder="Search programs…">
+                </div>
             </div>
-            <div class="chart-wrapper chart-wrapper-tall" id="chart3Wrapper">
-                <canvas id="chart3"></canvas>
+            <div class="table-container">
+                <table class="premium-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort="program">Program Name <span class="sort-icon"></span></th>
+                            <th class="sortable" data-sort="department">Department <span class="sort-icon"></span></th>
+                            <th class="sortable numeric" data-sort="amount">Amount <span class="sort-icon"></span></th>
+                            <th class="sortable numeric" data-sort="percent">% of Total <span class="sort-icon"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Dynamically filled -->
+                    </tbody>
+                </table>
             </div>
         </section>
     </main>

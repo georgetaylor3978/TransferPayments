@@ -4,24 +4,56 @@
 
 // ── State ──
 let rawRecords = [];
+let deptMap = {};
 let allYears = [];
 let allDepts = [];
+let allGroups = [];
+let selectedGroup = '<ALL>';
 let selectedDept = '<ALL>';
 let selectedYear = null;
+let combineDepartments = true;
+let themeMode = 'dark';
+
+// Table state
+let programSortColumn = 'amount';
+let programSortDirection = 'desc';
+let programSearchQuery = '';
+
+// Chart instances
 let chart1Instance = null;
 let chart2Instance = null;
-let chart3Instance = null;
+
+// Premium palette for stacked charts
+const themePalette = [
+    '#3b82f6', // Blue
+    '#10b981', // Emerald Green
+    '#06b6d4', // Cyan
+    '#f59e0b', // Amber
+    '#ec4899', // Pink
+    '#8b5cf6', // Violet
+    '#f97316', // Orange
+    '#14b8a6', // Teal
+    '#6366f1', // Indigo
+    '#84cc16'  // Lime
+];
 
 // ══════════════════════════════════════
-//  1.  LOAD DATA (pre-baked JSON)
+//  1.  LOAD DATA (JSON & CSV Map)
 // ══════════════════════════════════════
 async function fetchAllData() {
     const status = document.getElementById('dataStatus');
 
     try {
-        const res = await fetch('data.json');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        rawRecords = await res.json();
+        const [resData, resCsv] = await Promise.all([
+            fetch('data.json'),
+            fetch('DeptMap.csv')
+        ]);
+        if (!resData.ok) throw new Error(`HTTP ${resData.status} loading data`);
+        if (!resCsv.ok) throw new Error(`HTTP ${resCsv.status} loading DeptMap.csv`);
+        
+        rawRecords = await resData.json();
+        const csvText = await resCsv.text();
+        deptMap = parseCSV(csvText);
     } catch (err) {
         status.textContent = '❌ Load failed';
         status.className = 'data-status error';
@@ -29,49 +61,115 @@ async function fetchAllData() {
         return;
     }
 
-    // ── Derive unique lists ──
+    // Assign Ministerial Group to records
+    rawRecords.forEach(r => {
+        r.ministerialGroup = deptMap[r.department] || 'Unassigned';
+    });
+
+    // Derive unique lists
     allYears = [...new Set(rawRecords.map(r => r.year))].sort((a, b) => a - b);
+    allGroups = [...new Set(rawRecords.map(r => r.ministerialGroup))].sort();
     allDepts = [...new Set(rawRecords.map(r => r.department))].sort();
     selectedYear = allYears[allYears.length - 1];
 
     status.textContent = `✓ ${rawRecords.length.toLocaleString()} records`;
     status.className = 'data-status loaded';
 
+    initTheme();
+    buildGroupDropdown();
     buildDeptDropdown();
     buildYearSelect();
+    initCombineToggle();
+    initTableControls();
+    
     renderAll();
 }
 
+// Simple yet robust CSV parser
+function parseCSV(text) {
+    const lines = [];
+    let row = [""];
+    lines.push(row);
+    let inQuotes = false;
+    
+    for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        const next = text[i+1];
+        if (c === '"') {
+            if (inQuotes && next === '"') {
+                row[row.length - 1] += '"';
+                i++;
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (c === ',' && !inQuotes) {
+            row.push('');
+        } else if ((c === '\r' || c === '\n') && !inQuotes) {
+            if (c === '\r' && next === '\n') i++;
+            row = [''];
+            lines.push(row);
+        } else {
+            row[row.length - 1] += c;
+        }
+    }
+    
+    const mapping = {};
+    for (let i = 1; i < lines.length; i++) {
+        const r = lines[i];
+        if (r.length >= 2 && r[0].trim()) {
+            mapping[r[0].trim()] = r[1].trim() || 'Unassigned';
+        }
+    }
+    return mapping;
+}
+
 // ══════════════════════════════════════
-//  2.  DEPARTMENT DROPDOWN
+//  2.  MINISTERIAL GROUP DROPDOWN
 // ══════════════════════════════════════
-function buildDeptDropdown() {
-    const list = document.getElementById('deptList');
+function buildGroupDropdown() {
+    const list = document.getElementById('groupList');
     list.innerHTML = '';
 
-    const items = ['<ALL>', ...allDepts];
+    const items = ['<ALL>', ...allGroups];
     items.forEach(name => {
         const div = document.createElement('div');
-        div.className = 'dd-item' + (name === selectedDept ? ' selected' : '');
+        div.className = 'dd-item' + (name === selectedGroup ? ' selected' : '');
         div.textContent = name;
         div.addEventListener('click', () => {
-            selectedDept = name;
-            document.querySelector('#deptTrigger .dropdown-label').textContent = name;
+            selectedGroup = name;
+            document.querySelector('#groupTrigger .dropdown-label').textContent = name;
             list.querySelectorAll('.dd-item').forEach(el => el.classList.remove('selected'));
             div.classList.add('selected');
-            closeDropdown();
+            
+            // Check if current department belongs to newly selected group
+            if (selectedGroup !== '<ALL>') {
+                const deptsInGroup = [...new Set(rawRecords.filter(r => r.ministerialGroup === selectedGroup).map(r => r.department))];
+                if (selectedDept !== '<ALL>' && !deptsInGroup.includes(selectedDept)) {
+                    selectedDept = '<ALL>';
+                    document.querySelector('#deptTrigger .dropdown-label').textContent = '<ALL>';
+                    
+                    // Show/hide combine toggle
+                    document.getElementById('combineToggleGroup').style.display = 'flex';
+                }
+            }
+            
+            closeGroupDropdown();
+            buildDeptDropdown();
             renderAll();
         });
         list.appendChild(div);
     });
 
     // Toggle
-    const trigger = document.getElementById('deptTrigger');
-    const dropdown = document.getElementById('deptDropdown');
-    trigger.addEventListener('click', () => dropdown.classList.toggle('open'));
+    const trigger = document.getElementById('groupTrigger');
+    const dropdown = document.getElementById('groupDropdown');
+    trigger.addEventListener('click', () => {
+        dropdown.classList.toggle('open');
+        document.getElementById('deptDropdown').classList.remove('open');
+    });
 
     // Search
-    document.getElementById('deptSearch').addEventListener('input', e => {
+    document.getElementById('groupSearch').addEventListener('input', e => {
         const q = e.target.value.toLowerCase();
         list.querySelectorAll('.dd-item').forEach(el => {
             el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none';
@@ -84,12 +182,88 @@ function buildDeptDropdown() {
     });
 }
 
-function closeDropdown() {
+function closeGroupDropdown() {
+    document.getElementById('groupDropdown').classList.remove('open');
+}
+
+// ══════════════════════════════════════
+//  3.  DEPARTMENT DROPDOWN
+// ══════════════════════════════════════
+function buildDeptDropdown() {
+    const list = document.getElementById('deptList');
+    list.innerHTML = '';
+
+    // Filter departments based on selected group
+    let filteredDepts = allDepts;
+    if (selectedGroup !== '<ALL>') {
+        filteredDepts = [...new Set(rawRecords.filter(r => r.ministerialGroup === selectedGroup).map(r => r.department))].sort();
+    }
+
+    const items = ['<ALL>', ...filteredDepts];
+    items.forEach(name => {
+        const div = document.createElement('div');
+        div.className = 'dd-item' + (name === selectedDept ? ' selected' : '');
+        div.textContent = name;
+        div.addEventListener('click', () => {
+            selectedDept = name;
+            document.querySelector('#deptTrigger .dropdown-label').textContent = name;
+            list.querySelectorAll('.dd-item').forEach(el => el.classList.remove('selected'));
+            div.classList.add('selected');
+            
+            closeDeptDropdown();
+            
+            // Show/hide combine toggle based on selectedDept
+            const toggleGroup = document.getElementById('combineToggleGroup');
+            if (selectedDept === '<ALL>') {
+                toggleGroup.style.display = 'flex';
+            } else {
+                toggleGroup.style.display = 'none';
+            }
+            
+            renderAll();
+        });
+        list.appendChild(div);
+    });
+
+    // Toggle
+    const trigger = document.getElementById('deptTrigger');
+    const dropdown = document.getElementById('deptDropdown');
+    
+    // Reset any old listeners by replacing trigger with clone
+    const newTrigger = trigger.cloneNode(true);
+    trigger.parentNode.replaceChild(newTrigger, trigger);
+
+    newTrigger.addEventListener('click', () => {
+        dropdown.classList.toggle('open');
+        document.getElementById('groupDropdown').classList.remove('open');
+    });
+
+    // Search
+    const searchInput = document.getElementById('deptSearch');
+    const newSearchInput = searchInput.cloneNode(true);
+    searchInput.parentNode.replaceChild(newSearchInput, searchInput);
+    
+    newSearchInput.addEventListener('input', e => {
+        const q = e.target.value.toLowerCase();
+        list.querySelectorAll('.dd-item').forEach(el => {
+            el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none';
+        });
+    });
+
+    // Click-outside
+    document.addEventListener('click', e => {
+        if (!dropdown.contains(e.target) && e.target !== newTrigger && !newTrigger.contains(e.target)) {
+            dropdown.classList.remove('open');
+        }
+    });
+}
+
+function closeDeptDropdown() {
     document.getElementById('deptDropdown').classList.remove('open');
 }
 
 // ══════════════════════════════════════
-//  3.  YEAR SELECT (for Graph 2 & 3)
+//  4.  YEAR SELECT
 // ══════════════════════════════════════
 function buildYearSelect() {
     const sel = document.getElementById('yearSelect');
@@ -104,25 +278,42 @@ function buildYearSelect() {
     sel.addEventListener('change', () => {
         selectedYear = parseInt(sel.value, 10);
         renderGraph2();
-        renderGraph3();
+        renderTable();
     });
 }
 
 // ══════════════════════════════════════
-//  4.  FILTERED DATA HELPERS
+//  5.  COMBINE DEPARTMENTS TOGGLE
 // ══════════════════════════════════════
-function filteredByDept() {
-    if (selectedDept === '<ALL>') return rawRecords;
-    return rawRecords.filter(r => r.department === selectedDept);
+function initCombineToggle() {
+    const toggle = document.getElementById('combineToggle');
+    toggle.checked = combineDepartments;
+    toggle.addEventListener('change', () => {
+        combineDepartments = toggle.checked;
+        renderGraph1();
+    });
 }
 
 // ══════════════════════════════════════
-//  5.  KPIs
+//  6.  FILTERED DATA HELPERS
+// ══════════════════════════════════════
+function getFilteredRecords() {
+    let records = rawRecords;
+    if (selectedGroup !== '<ALL>') {
+        records = records.filter(r => r.ministerialGroup === selectedGroup);
+    }
+    if (selectedDept !== '<ALL>') {
+        records = records.filter(r => r.department === selectedDept);
+    }
+    return records;
+}
+
+// ══════════════════════════════════════
+//  7.  KPIs
 // ══════════════════════════════════════
 function renderKPIs() {
-    const data = filteredByDept();
+    const data = getFilteredRecords();
 
-    // Sum per year
     const byYear = {};
     data.forEach(r => { byYear[r.year] = (byYear[r.year] || 0) + r.amount; });
     const years = Object.keys(byYear).map(Number).sort((a, b) => a - b);
@@ -133,6 +324,8 @@ function renderKPIs() {
     if (years.length < 2) {
         elDollar.textContent = '—';
         elPct.textContent = '—';
+        elDollar.style.color = '';
+        elPct.style.color = '';
         return;
     }
 
@@ -148,45 +341,143 @@ function renderKPIs() {
 }
 
 // ══════════════════════════════════════
-//  6.  GRAPH 1 — LINE: Amount over Time
+//  8.  GRAPH 1 — Spend over Time
 // ══════════════════════════════════════
 function renderGraph1() {
-    const data = filteredByDept();
-
-    const byYear = {};
-    data.forEach(r => { byYear[r.year] = (byYear[r.year] || 0) + r.amount; });
-    const years = Object.keys(byYear).map(Number).sort((a, b) => a - b);
-    const values = years.map(y => byYear[y]);
-
-    const title = selectedDept === '<ALL>'
-        ? 'Total Transfer Payments Over Time'
-        : `Transfer Payments Over Time — ${selectedDept}`;
-    document.getElementById('chart1Title').textContent = title;
-
     if (chart1Instance) chart1Instance.destroy();
+
+    const years = allYears;
+    let datasets = [];
+    let title = '';
+    let isStacked = false;
+
+    // Filter records by Ministerial Group first
+    let baseRecords = rawRecords;
+    if (selectedGroup !== '<ALL>') {
+        baseRecords = baseRecords.filter(r => r.ministerialGroup === selectedGroup);
+    }
+
+    if (selectedDept !== '<ALL>') {
+        // Case A: Specific department selected
+        title = `${selectedGroup} › ${selectedDept}`;
+        
+        const byYear = {};
+        baseRecords.filter(r => r.department === selectedDept).forEach(r => {
+            byYear[r.year] = (byYear[r.year] || 0) + r.amount;
+        });
+        const dataValues = years.map(y => byYear[y] || 0);
+
+        datasets.push({
+            label: selectedDept,
+            data: dataValues,
+            backgroundColor: '#3b82f6',
+            borderRadius: 4,
+            borderSkipped: false,
+            barThickness: 24
+        });
+    } else if (combineDepartments) {
+        // Case B: ALL departments selected and Combine is ON
+        title = selectedGroup === '<ALL>' 
+            ? 'Total Transfer Payments Over Time' 
+            : `${selectedGroup} Spend Over Time (Combined)`;
+
+        const byYear = {};
+        baseRecords.forEach(r => {
+            byYear[r.year] = (byYear[r.year] || 0) + r.amount;
+        });
+        const dataValues = years.map(y => byYear[y] || 0);
+
+        datasets.push({
+            label: selectedGroup === '<ALL>' ? 'All Groups' : selectedGroup,
+            data: dataValues,
+            backgroundColor: '#3b82f6',
+            borderRadius: 4,
+            borderSkipped: false,
+            barThickness: 24
+        });
+    } else {
+        // Case C: ALL departments selected and Combine is OFF (Separate)
+        isStacked = true;
+        
+        if (selectedGroup === '<ALL>') {
+            // C1: Breakdown by Ministerial Group
+            title = 'Transfer Payments Over Time by Ministerial Group';
+            
+            const groupMap = {};
+            allGroups.forEach(g => { groupMap[g] = {}; });
+            
+            baseRecords.forEach(r => {
+                if (!groupMap[r.ministerialGroup]) groupMap[r.ministerialGroup] = {};
+                groupMap[r.ministerialGroup][r.year] = (groupMap[r.ministerialGroup][r.year] || 0) + r.amount;
+            });
+
+            const sortedGroups = [...allGroups].sort((a, b) => {
+                const sumA = Object.values(groupMap[a] || {}).reduce((s, v) => s + v, 0);
+                const sumB = Object.values(groupMap[b] || {}).reduce((s, v) => s + v, 0);
+                return sumB - sumA;
+            });
+
+            sortedGroups.forEach((group, idx) => {
+                const dataValues = years.map(y => groupMap[group][y] || 0);
+                datasets.push({
+                    label: group,
+                    data: dataValues,
+                    backgroundColor: themePalette[idx % themePalette.length],
+                    borderRadius: 4
+                });
+            });
+        } else {
+            // C2: Breakdown by Department in selected Ministerial Group
+            title = `Spend Over Time by Department — ${selectedGroup}`;
+
+            const deptsInGroup = [...new Set(baseRecords.map(r => r.department))].sort();
+            const deptDataMap = {};
+            deptsInGroup.forEach(d => { deptDataMap[d] = {}; });
+
+            baseRecords.forEach(r => {
+                deptDataMap[r.department][r.year] = (deptDataMap[r.department][r.year] || 0) + r.amount;
+            });
+
+            const sortedDepts = deptsInGroup.sort((a, b) => {
+                const sumA = Object.values(deptDataMap[a] || {}).reduce((s, v) => s + v, 0);
+                const sumB = Object.values(deptDataMap[b] || {}).reduce((s, v) => s + v, 0);
+                return sumB - sumA;
+            });
+
+            sortedDepts.forEach((dept, idx) => {
+                const dataValues = years.map(y => deptDataMap[dept][y] || 0);
+                datasets.push({
+                    label: dept,
+                    data: dataValues,
+                    backgroundColor: themePalette[idx % themePalette.length],
+                    borderRadius: 4
+                });
+            });
+        }
+    }
+
+    document.getElementById('chart1Title').textContent = title;
 
     chart1Instance = new Chart(document.getElementById('chart1'), {
         type: 'bar',
         data: {
             labels: years,
-            datasets: [{
-                label: 'Amount ($)',
-                data: values,
-                backgroundColor: '#3b82f6',
-                borderRadius: 4,
-                borderSkipped: false,
-                barThickness: 24
-            }]
+            datasets: datasets
         },
-        options: barOptsVertical('Amount ($)')
+        options: barOptsVertical('Amount ($)', isStacked)
     });
 }
 
 // ══════════════════════════════════════
-//  7.  GRAPH 2 — HORIZ BAR: Depts by $
+//  9.  GRAPH 2 — Department Breakdown
 // ══════════════════════════════════════
 function renderGraph2() {
-    const yearData = rawRecords.filter(r => r.year === selectedYear);
+    if (chart2Instance) chart2Instance.destroy();
+
+    let yearData = rawRecords.filter(r => r.year === selectedYear);
+    if (selectedGroup !== '<ALL>') {
+        yearData = yearData.filter(r => r.ministerialGroup === selectedGroup);
+    }
 
     const byDept = {};
     let totalAmount = 0;
@@ -197,7 +488,6 @@ function renderGraph2() {
 
     const sorted = Object.entries(byDept).sort((a, b) => b[1] - a[1]);
 
-    // Top 15 + Missing
     const top = sorted.slice(0, 15);
     const labels = top.map(s => s[0]);
     const values = top.map(s => s[1]);
@@ -206,21 +496,35 @@ function renderGraph2() {
     const missingAmount = totalAmount - topSum;
 
     if (sorted.length > 15 && missingAmount > 0) {
-        labels.push(`Missing: ${formatDollar(missingAmount)}`);
+        labels.push(`Other Departments`);
         values.push(missingAmount);
     }
 
-    // Dynamic height
     const wrapper = document.getElementById('chart2Wrapper');
     wrapper.style.height = Math.max(400, labels.length * 28) + 'px';
 
-    document.getElementById('chart2Title').textContent =
-        `Transfer Payments by Department — ${selectedYear}`;
+    let title = `Transfer Payments by Department — ${selectedYear}`;
+    if (selectedGroup !== '<ALL>') {
+        title = `Departmental Spending in ${selectedGroup} — ${selectedYear}`;
+    }
+    document.getElementById('chart2Title').textContent = title;
 
-    if (chart2Instance) chart2Instance.destroy();
-
-    const colors = generateGradientColors(top.length, '#3b82f6', '#22d3ee');
-    if (labels.length > top.length) colors.push('#f97316'); // Orange for missing
+    // Create high-contrast highlight for selected department
+    let colors = [];
+    const defaultColors = generateGradientColors(top.length, '#3b82f6', '#06b6d4');
+    
+    for (let i = 0; i < top.length; i++) {
+        const deptName = top[i][0];
+        if (selectedDept !== '<ALL>' && deptName === selectedDept) {
+            colors.push('#fbbf24'); // Vibrant amber for selected dept
+        } else {
+            colors.push(defaultColors[i]);
+        }
+    }
+    
+    if (labels.length > top.length) {
+        colors.push('#6b7089');
+    }
 
     chart2Instance = new Chart(document.getElementById('chart2'), {
         type: 'bar',
@@ -240,112 +544,210 @@ function renderGraph2() {
 }
 
 // ══════════════════════════════════════
-//  8.  GRAPH 3 — HORIZ BAR: Programs
+//  10. INTERACTIVE PROGRAMS TABLE
 // ══════════════════════════════════════
-function renderGraph3() {
-    let data = rawRecords.filter(r => r.year === selectedYear);
-    if (selectedDept !== '<ALL>') data = data.filter(r => r.department === selectedDept);
+function initTableControls() {
+    const searchInput = document.getElementById('tableSearch');
+    if (searchInput) {
+        searchInput.value = programSearchQuery;
+        searchInput.addEventListener('input', e => {
+            programSearchQuery = e.target.value;
+            renderTable();
+        });
+    }
 
-    const byProg = {};
-    data.forEach(r => { byProg[r.program] = (byProg[r.program] || 0) + r.amount; });
-    const sorted = Object.entries(byProg).sort((a, b) => b[1] - a[1]);
-
-    // Limit to top 50 to avoid overcrowding when ALL is selected
-    const top = sorted.slice(0, 50);
-
-    // Wrap text: split long labels into arrays of strings so Chart.js renders them on multiple lines
-    const labels = top.map(s => wrapTextLabel(s[0], 50));
-    const values = top.map(s => s[1]);
-
-    const wrapper = document.getElementById('chart3Wrapper');
-    wrapper.style.height = Math.max(400, labels.length * 28) + 'px';
-
-    let subtitle = `Programs — ${selectedYear}`;
-    if (selectedDept !== '<ALL>') subtitle += ` — ${selectedDept}`;
-    if (sorted.length > 50) subtitle += ` (Top 50 of ${sorted.length})`;
-    document.getElementById('chart3Title').textContent = subtitle;
-
-    if (chart3Instance) chart3Instance.destroy();
-
-    chart3Instance = new Chart(document.getElementById('chart3'), {
-        type: 'bar',
-        data: {
-            labels,
-            datasets: [{
-                label: 'Amount ($)',
-                data: values,
-                backgroundColor: generateGradientColors(labels.length, '#34d399', '#22d3ee'),
-                borderRadius: 4,
-                borderSkipped: false,
-                barThickness: 14 // thinner to accommodate multi-line labels
-            }]
-        },
-        options: barOptsMultiLine()
+    const headers = document.querySelectorAll('.premium-table th.sortable');
+    headers.forEach(th => {
+        th.addEventListener('click', () => {
+            const column = th.getAttribute('data-sort');
+            if (programSortColumn === column) {
+                programSortDirection = programSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                programSortColumn = column;
+                programSortDirection = column === 'amount' || column === 'percent' ? 'desc' : 'asc';
+            }
+            renderTable();
+        });
     });
 }
 
+function updateTableSortIcons() {
+    const headers = document.querySelectorAll('.premium-table th.sortable');
+    headers.forEach(th => {
+        const column = th.getAttribute('data-sort');
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (programSortColumn === column) {
+            th.classList.add(programSortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+        }
+    });
+}
+
+function renderTable() {
+    const tableBody = document.getElementById('tableBody');
+    if (!tableBody) return;
+    
+    let data = rawRecords.filter(r => r.year === selectedYear);
+    if (selectedGroup !== '<ALL>') {
+        data = data.filter(r => r.ministerialGroup === selectedGroup);
+    }
+    if (selectedDept !== '<ALL>') {
+        data = data.filter(r => r.department === selectedDept);
+    }
+
+    const progAgg = {};
+    let totalSum = 0;
+
+    data.forEach(r => {
+        const key = r.program;
+        if (!progAgg[key]) {
+            progAgg[key] = {
+                program: r.program,
+                department: r.department,
+                amount: 0
+            };
+        }
+        progAgg[key].amount += r.amount;
+        totalSum += r.amount;
+    });
+
+    let list = Object.values(progAgg);
+
+    if (programSearchQuery.trim() !== '') {
+        const q = programSearchQuery.toLowerCase();
+        list = list.filter(item => 
+            item.program.toLowerCase().includes(q) || 
+            item.department.toLowerCase().includes(q)
+        );
+    }
+
+    // Calculate percent of overall sum for sorting
+    list.forEach(item => {
+        item.percent = totalSum > 0 ? (item.amount / totalSum) * 100 : 0;
+    });
+
+    list.sort((a, b) => {
+        let valA = a[programSortColumn];
+        let valB = b[programSortColumn];
+
+        if (typeof valA === 'string') {
+            return programSortDirection === 'asc' 
+                ? valA.localeCompare(valB) 
+                : valB.localeCompare(valA);
+        } else {
+            return programSortDirection === 'asc' 
+                ? valA - valB 
+                : valB - valA;
+        }
+    });
+
+    const displayedItems = list.slice(0, 50);
+    const sumOfDisplayed = displayedItems.reduce((s, item) => s + item.amount, 0);
+
+    tableBody.innerHTML = '';
+    if (displayedItems.length === 0) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td colspan="4" style="text-align: center; color: var(--text-muted); padding: 32px;">No matching programs found.</td>`;
+        tableBody.appendChild(tr);
+    } else {
+        displayedItems.forEach(item => {
+            const pctOfDisplayed = sumOfDisplayed > 0 ? (item.amount / sumOfDisplayed) * 100 : 0;
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${item.program}</strong></td>
+                <td>
+                    <span class="table-dept-text">${item.department}</span>
+                    <span class="table-dept-subtext">${deptMap[item.department] || 'Unassigned'}</span>
+                </td>
+                <td class="numeric">${formatDollar(item.amount)}</td>
+                <td class="numeric"><strong>${pctOfDisplayed.toFixed(2)}%</strong></td>
+            `;
+            tableBody.appendChild(tr);
+        });
+    }
+
+    let subtitle = `Top Programs in ${selectedYear}`;
+    if (selectedGroup !== '<ALL>') subtitle += ` — ${selectedGroup}`;
+    if (selectedDept !== '<ALL>') subtitle += ` — ${selectedDept}`;
+    if (list.length > 50) subtitle += ` (Top 50 of ${list.length})`;
+    document.getElementById('tableSubtitle').textContent = subtitle;
+    
+    updateTableSortIcons();
+}
+
 // ══════════════════════════════════════
-//  RENDER ALL
+//  11. THEME MANAGEMENT
+// ══════════════════════════════════════
+function initTheme() {
+    const toggleBtn = document.getElementById('themeToggle');
+    if (!toggleBtn) return;
+
+    const savedTheme = localStorage.getItem('theme-mode') || 'dark';
+    themeMode = savedTheme;
+    
+    if (themeMode === 'light') {
+        document.body.classList.add('light-mode');
+        toggleBtn.querySelector('.theme-icon').textContent = '☀️';
+    } else {
+        document.body.classList.remove('light-mode');
+        toggleBtn.querySelector('.theme-icon').textContent = '🌙';
+    }
+
+    toggleBtn.addEventListener('click', () => {
+        if (document.body.classList.contains('light-mode')) {
+            document.body.classList.remove('light-mode');
+            toggleBtn.querySelector('.theme-icon').textContent = '🌙';
+            themeMode = 'dark';
+        } else {
+            document.body.classList.add('light-mode');
+            toggleBtn.querySelector('.theme-icon').textContent = '☀️';
+            themeMode = 'light';
+        }
+        localStorage.setItem('theme-mode', themeMode);
+        
+        // Dynamic re-render to update Chart.js theme colors
+        renderGraph1();
+        renderGraph2();
+    });
+}
+
+function getThemeColor(varName) {
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() ||
+           getComputedStyle(document.body).getPropertyValue(varName).trim();
+}
+
+// ══════════════════════════════════════
+//  12. RENDER ALL
 // ══════════════════════════════════════
 function renderAll() {
     renderKPIs();
     renderGraph1();
     renderGraph2();
-    renderGraph3();
+    renderTable();
 }
 
 // ══════════════════════════════════════
-//  CHART OPTION BUILDERS
+//  13. CHART OPTION BUILDERS
 // ══════════════════════════════════════
-function barOptsVertical(yLabel) {
+function barOptsVertical(yLabel, stacked = false) {
     return {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { display: false },
-            tooltip: {
-                backgroundColor: 'rgba(15,17,23,0.92)',
-                titleColor: '#e8eaf0',
-                bodyColor: '#a0a4b8',
-                borderColor: '#262a3d',
-                borderWidth: 1,
-                padding: 12,
-                cornerRadius: 8,
-                callbacks: {
-                    label: ctx => `Amount: ${formatDollar(ctx.parsed.y)}`
+            legend: { 
+                display: stacked,
+                position: 'bottom',
+                labels: {
+                    color: getThemeColor('--text-secondary') || '#a0a4b8',
+                    font: { size: 10, family: 'Inter' },
+                    boxWidth: 12
                 }
-            }
-        },
-        scales: {
-            x: {
-                grid: { display: false },
-                ticks: { color: '#6b7089', font: { size: 11 } }
             },
-            y: {
-                grid: { color: 'rgba(255,255,255,0.04)' },
-                ticks: {
-                    color: '#6b7089',
-                    font: { size: 11 },
-                    callback: v => formatCompact(v)
-                },
-                title: { display: true, text: yLabel, color: '#6b7089', font: { size: 11 } }
-            }
-        }
-    };
-}
-
-function lineOpts(yLabel) {
-    return {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-            legend: { display: false },
             tooltip: {
-                backgroundColor: 'rgba(15,17,23,0.92)',
-                titleColor: '#e8eaf0',
-                bodyColor: '#a0a4b8',
-                borderColor: '#262a3d',
+                backgroundColor: getThemeColor('--bg-card') || '#1a1d2e',
+                titleColor: getThemeColor('--text-primary') || '#e8eaf0',
+                bodyColor: getThemeColor('--text-secondary') || '#a0a4b8',
+                borderColor: getThemeColor('--border') || '#262a3d',
                 borderWidth: 1,
                 padding: 12,
                 cornerRadius: 8,
@@ -356,17 +758,30 @@ function lineOpts(yLabel) {
         },
         scales: {
             x: {
-                grid: { color: 'rgba(255,255,255,0.04)' },
-                ticks: { color: '#6b7089', font: { size: 11 } }
+                stacked: stacked,
+                grid: { display: false },
+                ticks: { 
+                    color: getThemeColor('--text-muted') || '#6b7089', 
+                    font: { size: 11, family: 'Inter' } 
+                }
             },
             y: {
-                grid: { color: 'rgba(255,255,255,0.04)' },
+                stacked: stacked,
+                grid: { 
+                    color: getThemeColor('--border-light') || '#2d3150',
+                    opacity: 0.1 
+                },
                 ticks: {
-                    color: '#6b7089',
-                    font: { size: 11 },
+                    color: getThemeColor('--text-muted') || '#6b7089',
+                    font: { size: 11, family: 'Inter' },
                     callback: v => formatCompact(v)
                 },
-                title: { display: true, text: yLabel, color: '#6b7089', font: { size: 11 } }
+                title: { 
+                    display: true, 
+                    text: yLabel, 
+                    color: getThemeColor('--text-muted') || '#6b7089', 
+                    font: { size: 11, family: 'Inter' } 
+                }
             }
         }
     };
@@ -380,10 +795,10 @@ function barOpts() {
         plugins: {
             legend: { display: false },
             tooltip: {
-                backgroundColor: 'rgba(15,17,23,0.92)',
-                titleColor: '#e8eaf0',
-                bodyColor: '#a0a4b8',
-                borderColor: '#262a3d',
+                backgroundColor: getThemeColor('--bg-card') || '#1a1d2e',
+                titleColor: getThemeColor('--text-primary') || '#e8eaf0',
+                bodyColor: getThemeColor('--text-secondary') || '#a0a4b8',
+                borderColor: getThemeColor('--border') || '#262a3d',
                 borderWidth: 1,
                 padding: 12,
                 cornerRadius: 8,
@@ -394,18 +809,21 @@ function barOpts() {
         },
         scales: {
             x: {
-                grid: { color: 'rgba(255,255,255,0.04)' },
+                grid: { 
+                    color: getThemeColor('--border-light') || '#2d3150',
+                    opacity: 0.1 
+                },
                 ticks: {
-                    color: '#6b7089',
-                    font: { size: 11 },
+                    color: getThemeColor('--text-muted') || '#6b7089',
+                    font: { size: 11, family: 'Inter' },
                     callback: v => formatCompact(v)
                 }
             },
             y: {
                 grid: { display: false },
                 ticks: {
-                    color: '#a0a4b8',
-                    font: { size: 11 },
+                    color: getThemeColor('--text-secondary') || '#a0a4b8',
+                    font: { size: 11, family: 'Inter' },
                     autoSkip: false
                 }
             }
@@ -413,14 +831,8 @@ function barOpts() {
     };
 }
 
-function barOptsMultiLine() {
-    const opts = barOpts();
-    opts.scales.y.ticks.font = { size: 10 };
-    return opts;
-}
-
 // ══════════════════════════════════════
-//  UTILITIES
+//  14. UTILITIES
 // ══════════════════════════════════════
 function formatDollar(v) {
     const abs = Math.abs(v);
@@ -438,28 +850,6 @@ function formatCompact(v) {
     if (abs >= 1e6) return (v / 1e6).toFixed(1) + 'M';
     if (abs >= 1e3) return (v / 1e3).toFixed(0) + 'K';
     return v.toString();
-}
-
-function truncateLabel(s, max) {
-    return s && s.length > max ? s.slice(0, max - 1) + '…' : (s || '(unnamed)');
-}
-
-function wrapTextLabel(text, maxLineLength) {
-    if (!text) return '(unnamed)';
-    const words = text.split(' ');
-    const lines = [];
-    let currentLine = words[0];
-
-    for (let i = 1; i < words.length; i++) {
-        if (currentLine.length + words[i].length + 1 <= maxLineLength) {
-            currentLine += ' ' + words[i];
-        } else {
-            lines.push(currentLine);
-            currentLine = words[i];
-        }
-    }
-    lines.push(currentLine);
-    return lines.length === 1 ? lines[0] : lines;
 }
 
 function generateGradientColors(count, from, to) {
@@ -485,6 +875,6 @@ function hexToRgb(hex) {
 }
 
 // ══════════════════════════════════════
-//  INIT
+//  15. INIT
 // ══════════════════════════════════════
 fetchAllData();
